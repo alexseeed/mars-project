@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     }
 
     const query = id 
-      ? `query Transcript($id: ID!) {
+      ? `query Transcript($id: String!) {
           transcript(id: $id) {
             id
             title
