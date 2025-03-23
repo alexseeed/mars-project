@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import axios from 'axios'
 
 interface Sentence {
   speaker_name: string
@@ -24,38 +25,22 @@ export default function TranscriptPage({ params }: { params: { id: string } }) {
     const fetchTranscript = async () => {
       try {
         setLoading(true)
-        setError(null)
-        const response = await fetch(`/api/transcript/full?count=5`)
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch transcript')
+        const response = await axios.get(`/api/transcript/full?count=1&id=${params.id}`)
+        if (response.data?.data?.transcript) {
+          setTranscript(response.data.data.transcript)
         }
-
-        // Find the transcript with matching ID
-        const foundTranscript = Array.isArray(data) 
-          ? data.find((t: Transcript) => t.id === params.id)
-          : data
-
-        if (!foundTranscript) {
-          throw new Error('Transcript not found')
-        }
-
-        setTranscript(foundTranscript)
-      } catch (err) {
-        console.error('Error fetching transcript:', err)
-        if (err instanceof Error) {
-          setError(err.message)
-        } else {
-          setError('Failed to fetch transcript')
-        }
+      } catch (error) {
+        console.error('Error fetching transcript:', error)
+        setError('Failed to load transcript')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchTranscript()
-  }, [params.id])
+    if (params?.id) {
+      fetchTranscript()
+    }
+  }, [params?.id])
 
   if (loading) {
     return (
