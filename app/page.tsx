@@ -16,46 +16,39 @@ interface Transcript {
 }
 
 export default function Home() {
-  const [transcripts, setTranscripts] = useState<Transcript[]>([])
+  const [allTranscripts, setAllTranscripts] = useState<Transcript[]>([])
+  const [displayedTranscripts, setDisplayedTranscripts] = useState<Transcript[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isAdding, setIsAdding] = useState(false)
-  const [skipCount, setSkipCount] = useState(0)
+  const [displayCount, setDisplayCount] = useState(5)
 
   useEffect(() => {
     fetchTranscripts()
   }, [])
 
+  useEffect(() => {
+    setDisplayedTranscripts(allTranscripts.slice(0, displayCount))
+  }, [allTranscripts, displayCount])
+
   const fetchTranscripts = async () => {
     try {
       setLoading(true)
-      setError(null)
-      const response = await fetch('/api/transcript/full?count=5')
+      const response = await fetch('/api/transcript/full')
       const data = await response.json()
-
+      
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch transcripts')
       }
 
-      // If we already have transcripts, only add new ones
-      if (transcripts.length > 0) {
-        const newTranscripts = Array.isArray(data) 
-          ? data.filter(t => !transcripts.some(existing => existing.id === t.id))
-          : [data].filter(t => !transcripts.some(existing => existing.id === t.id))
-        
-        if (newTranscripts.length > 0) {
-          setTranscripts(prev => [...newTranscripts, ...prev])
-        }
-      } else {
-        setTranscripts(Array.isArray(data) ? data : [data])
+      if (data.errors) {
+        throw new Error(data.errors[0].message || 'Failed to fetch transcripts')
       }
-    } catch (err) {
-      console.error('Error fetching transcripts:', err)
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Failed to fetch transcripts')
-      }
+
+      setAllTranscripts(data.data.transcripts)
+    } catch (error: any) {
+      console.error('Error fetching transcripts:', error)
+      setError(error.message || 'Failed to fetch transcripts')
     } finally {
       setLoading(false)
     }
@@ -67,8 +60,7 @@ export default function Home() {
     setError(null)
 
     try {
-      // Fetch 5 transcripts at once to reduce API calls
-      const response = await fetch(`/api/transcript/full?count=5&skipCount=${skipCount}`)
+      const response = await fetch('/api/transcript/full')
       const data = await response.json()
 
       if (!response.ok) {
@@ -79,20 +71,22 @@ export default function Home() {
         throw new Error(data.error || 'Failed to fetch transcript')
       }
 
-      // Find the first transcript that's not already in our list
-      const newTranscript = data.find((t: Transcript) => 
-        !transcripts.some(existing => existing.id === t.id)
+      if (data.errors) {
+        throw new Error(data.errors[0].message || 'Failed to fetch transcript')
+      }
+
+      const newTranscripts = data.data.transcripts || []
+      
+      // Find transcripts that aren't already in our list
+      const uniqueTranscripts = newTranscripts.filter((t: Transcript) => 
+        !allTranscripts.some(existing => existing.id === t.id)
       )
 
-      if (newTranscript) {
-        setTranscripts(prev => [newTranscript, ...prev])
-        setSkipCount(0) // Reset skip count on success
+      if (uniqueTranscripts.length > 0) {
+        setAllTranscripts(prev => [...uniqueTranscripts, ...prev])
+        setDisplayCount(prev => prev + 5)
       } else {
-        // If no new transcript found, try fetching older ones
-        setSkipCount(prev => prev + 5)
-        setError('No new transcripts found. Trying older ones...')
-        // Add a delay before trying again
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        setError('No new transcripts found.')
       }
     } catch (err) {
       console.error('Error adding transcript:', err)
@@ -159,7 +153,7 @@ export default function Home() {
         )}
 
         <div className="space-y-4">
-          {transcripts.map((transcript) => (
+          {displayedTranscripts.map((transcript) => (
             <Link
               key={transcript.id}
               href={`/transcript/${transcript.id}`}

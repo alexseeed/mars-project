@@ -1,101 +1,94 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
 
-const FIREFLIES_API_KEY = process.env.FIREFLIES_API_KEY
 const FIREFLIES_API_URL = 'https://api.fireflies.ai/graphql'
 
-interface Sentence {
-  speaker_name: string
-  text: string
-}
-
-interface Transcript {
-  id: string
-  title: string
-  date: number
-  sentences: Sentence[]
-}
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(request: Request) {
-  if (!FIREFLIES_API_KEY) {
-    return NextResponse.json({ error: 'Fireflies API key not configured' }, { status: 500 })
-  }
-
   try {
-    const { searchParams } = new URL(request.url)
-    const count = parseInt(searchParams.get('count') || '1', 10)
-    const skipCount = parseInt(searchParams.get('skipCount') || '0', 10)
+    const url = new URL(request.url)
+    const id = url.searchParams.get('id')
 
-    // Fetch transcripts in batches
+    if (!process.env.NEXT_PUBLIC_FIREFLIES_API_KEY) {
+      console.error('Fireflies API key not configured')
+      return NextResponse.json(
+        { error: 'Fireflies API key not configured' },
+        { status: 500 }
+      )
+    }
+
+    const query = id 
+      ? `query Transcript($id: ID!) {
+          transcript(id: $id) {
+            id
+            title
+            date
+            sentences {
+              speaker_name
+              text
+            }
+          }
+        }`
+      : `query Transcripts {
+          transcripts {
+            id
+            title
+            date
+            sentences {
+              speaker_name
+              text
+            }
+          }
+        }`
+
+    const variables = id ? { id } : {}
+
+    console.log('Making request to Fireflies API with key:', process.env.NEXT_PUBLIC_FIREFLIES_API_KEY.substring(0, 8) + '...')
+
     const response = await axios.post(
       FIREFLIES_API_URL,
       {
-        query: `
-          query GetTranscripts($limit: Int!) {
-            transcripts(limit: $limit) {
-              id
-              title
-              date
-              sentences {
-                speaker_name
-                text
-              }
-            }
-          }
-        `,
-        variables: {
-          limit: count
-        }
+        query,
+        variables
       },
       {
         headers: {
-          'Authorization': `Bearer ${FIREFLIES_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_FIREFLIES_API_KEY}`
         }
       }
     )
 
     if (response.data.errors) {
-      console.error('GraphQL Errors:', response.data.errors)
-      const error = response.data.errors[0]
-      
-      // Handle rate limit errors
-      if (error.extensions?.code === 'too_many_requests') {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 429 }
-        )
-      }
-      
+      console.error('Fireflies API Error Response:', response.data)
       return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
+        { error: response.data.errors[0].message },
+        { status: 500 }
       )
     }
 
-    const transcripts = response.data.data.transcripts
-    return NextResponse.json(transcripts)
+    // Sort transcripts by date in descending order (newest first)
+    let data = response.data
+    if (!id) {
+      const allTranscripts = data.data.transcripts || []
+      const sortedTranscripts = allTranscripts.sort((a: any, b: any) => b.date - a.date)
+      data.data.transcripts = sortedTranscripts
+    }
+
+    return NextResponse.json(data)
   } catch (error: any) {
     console.error('Error fetching transcripts:', error)
-    
-    // Handle rate limit errors from axios
-    if (error.response?.status === 429) {
+    if (error.response) {
+      console.error('Error response:', error.response.data)
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
-      )
-    }
-
-    // Handle other API errors
-    if (error.response?.data?.errors) {
-      return NextResponse.json(
-        { error: error.response.data.errors[0].message },
+        { error: error.response.data.errors?.[0]?.message || 'Failed to fetch transcripts' },
         { status: error.response.status }
       )
     }
-
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch transcripts' },
+      { error: 'Failed to fetch transcripts' },
       { status: 500 }
     )
   }
