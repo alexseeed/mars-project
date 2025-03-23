@@ -6,6 +6,18 @@
   "framework": "nextjs",
   "regions": ["fra1"],
   "env": {
-    "FIREFLIES_API_KEY": "eb17437e-d0c4-44ba-bbf7-b2d4bdc5e783"
+    "NEXT_PUBLIC_FIREFLIES_API_KEY": "eb17437e-d0c4-44ba-bbf7-b2d4bdc5e783"
+  },
+  "outputDirectory": ".next",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_FIREFLIES_API_KEY": "eb17437e-d0c4-44ba-bbf7-b2d4bdc5e783"
+    }
   }
 } 

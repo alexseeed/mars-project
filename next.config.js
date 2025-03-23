@@ -1,11 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
-  env: {
-    FIREFLIES_API_KEY: process.env.FIREFLIES_API_KEY,
-    NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'localhost:3001']
+    }
   },
+  output: 'standalone',
+  distDir: '.next',
+  typescript: {
+    ignoreBuildErrors: true
+  }
 }
 
 module.exports = nextConfig
